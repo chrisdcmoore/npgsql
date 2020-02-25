@@ -97,6 +97,14 @@ namespace Npgsql.Tests
                         eventBroken = true;
                 };
 
+                // Temporary: introduce a delay to make the race condition I'm trying to reduce the occurrence of _more_ likely to occur
+                // That is, I'm hoping this causes all the github actions against postgres on Windows to fail consistently...
+                // (When running against PostgreSQL on Windows, a pg_terminate_backend results in the server sending the error message and
+                // immediately resetting the TCP connection, rather than closing it gracefully with FIN/FIN-ACK/etc.)
+                // Our attempt to flush the SELECT pg_sleep command to the network write buffer races with receiving the RST, so when the flush
+                // wins, the test passes as expected, but when the RST wins we get a socket exception (reset by remote host)
+                Task.WaitAll(Task.Delay(TimeSpan.FromSeconds(1)));
+
                 // Allow some time for the pg_terminate to kill our connection
                 using (var cmd = CreateSleepCommand(conn, 10))
                     Assert.That(() => cmd.ExecuteNonQuery(), Throws.Exception
